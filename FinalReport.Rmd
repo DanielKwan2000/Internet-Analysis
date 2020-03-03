@@ -1,0 +1,369 @@
+---
+title: "Internet Analysis"
+date: "April 1, 2019"
+output:
+  pdf_document: default
+  html_document: default
+author: Chandra Keerthi
+---
+
+i. What Is Internet Use?...............................................................................................
+ii. Data Description...................................................................................................
+iii. Descriptive Statistics............................................................................................
+iv. Data Exploration...................................................................................................
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent THE printing of the R code that generated the plot.
+
+0. NOTES
+Inner join is used throughout this project in order to remove entries with "NA". If an entry has NA value(s), the entry is flawed and should not be included in the models.
+
+
+
+
+A. Installing necessary packages:
+```{r}
+install.packages("maptools")
+install.packages("mapdata")
+install.packages("maps")
+library(tidyverse)
+library(maps)
+library(maptools)
+library(mapdata)
+library(manipulate)
+```
+
+
+
+B. Building fundamental datasets:
+```{r}
+world_regions$Region[world_regions$Region=="Asic & Pacific"] <- "Asia & Pacific"
+```
+
+```{r}
+#Population and Internet use
+# popAndInter <-inner_join(population_cia2017,internetusers_cia2017,"Country")
+# 
+# popAndInter<-popAndInter %>% 
+#   select(Country,POPULATION,`INTERNET USERS`) %>% 
+#   mutate(percentWithInter = `INTERNET USERS`/POPULATION) %>% 
+#   filter(percentWithInter<=1) %>% 
+#   arrange(desc(percentWithInter))
+# 
+# popAndInter
+
+
+
+```
+
+```{r}
+#comparing internet users and population
+#combining the two data sets with Countries in common
+popAndInter<-inner_join(population_cia2017,internetusers_cia2017,"Country")
+popAndInter<-popAndInter%>%
+  select(Country,POPULATION, `INTERNET USERS`)%>%
+  mutate(percentWithInter=popAndInter$`INTERNET USERS` / popAndInter$POPULATION)%>%
+  filter(percentWithInter<1)%>% #because those are outliers 
+  arrange(desc(percentWithInter))
+#selecting only country, population and internet users to display
+#mutate to create a percentage for the countries internet users to population
+
+popAndInter
+#-----------------------------
+#combining democracy index data and the percentage of internet users by Country
+demo_int_corr<-inner_join(popAndInter,democracy,"Country")
+demo_int_corr <- demo_int_corr %>% 
+  select(Country,POPULATION,`INTERNET USERS`,percentWithInter,Score,Category)
+demo_int_corr$Score <- as.double(demo_int_corr$Score)
+demo_int_corr
+
+
+#to find the correlation, only selecting population, % and Score and Category
+#-------------------------------
+
+#checking if education gdp has any relationship with the internet percentage of a country
+edu_popAndInter<-inner_join(popAndInter,education_cia2017,"Country")
+edu_popAndInter<-edu_popAndInter%>%
+  mutate(percentofgdp=edu_popAndInter$`(% OF GDP)`)%>%
+  select(Country,percentWithInter,percentofgdp)%>%
+  arrange(desc(percentofgdp))
+edu_popAndInter
+
+#-------------------------------
+#check the life expectency average for a country and comparing what impact internet use has
+lifeandint<-inner_join(popAndInter, lifeexpect_cia2017,"Country")
+lifeandint<-lifeandint%>%
+  mutate(AGE=lifeandint$`(YEARS)`)%>%
+  select(Country, percentWithInter, AGE)%>%
+  arrange(desc(AGE))
+lifeandint
+
+#-----------------------------
+#checking global north and global south to see which has higher internet user
+regionandintuse<-inner_join(world_regions,popAndInter)
+
+regionandintuse<-regionandintuse%>%
+  mutate(Direction=regionandintuse$`Global South`)%>%
+  select(Country,percentWithInter,Direction,Region,POPULATION)
+regionandintuse
+#Only selecting Country and Percent of intnernet
+
+#------------------------------
+healthAndInternet <- inner_join(healthexpend_cia2017, popAndInter,"Country")
+healthAndInternet <- inner_join(healthAndInternet, world_regions, "Country")
+healthAndInternet <- healthAndInternet %>% 
+  select(Country, `(% OF GDP)`, percentWithInter, `Global South`)
+healthAndInternet
+
+#------------------------------
+healthAndInternet <- inner_join(healthexpend_cia2017, popAndInter,"Country")
+healthAndInternet <- inner_join(healthAndInternet, world_regions, "Country")
+healthAndInternet <- healthAndInternet %>% 
+  select(Country, `(% OF GDP)`, percentWithInter, `Global South`)
+healthAndInternet
+
+```
+
+
+C. Building graphs and drawing observations
+```{r}
+#b1
+#Health and Internet Scatterplot
+#building the scatter plot
+ggplot(healthAndInternet, aes(y=`(% OF GDP)`,x=percentWithInter)) + geom_point(aes(color = `Global South`)) + geom_smooth(aes(color = `Global South`),method=lm) + geom_smooth(color = "black")+ scale_x_continuous(name = "Percents of population with internet",breaks=c(seq(0,1,by = 0.25)), labels = c("0%","25%","50%","75%","100%")) + scale_y_continuous(name = "Health Exp. as % of GDP") 
+
+#Correlation Coefficient
+cor(healthAndInternet$percentWithInter, healthAndInternet$`(% OF GDP)`)
+var(healthAndInternet$percentWithInter)
+var(healthAndInternet$`(% OF GDP)`)
+
+```
+Observation: 
+Firstly, all countries in the Northern Hemisphere have more than 50% of their population have access to the Internet while this variable varies significantly among the countries in the Southern Hemisphere. Generally, the Health expenditure of Northern countries is higher than that of the Southern ones. Despite this difference, many countries whose population's access to the Internet is spent proportionally as much of their GDP on the Health sector. Upon further observation, we can see that the correlation between these 2 variables is different in each hemisphere. In the north, they strongly, positively correlated. In the south, however, there is little correlation. If we assume that the percentage of the population that has access to the Internet impacts or is impacted by health expenditure, it would imply that there are other factors that hold significant sway on the Southern countries that do not affect these numbers in the Northern ones. 
+Correlation coefficient = 0.27: Globally, there is a weak positive correlation between these variables.
+
+
+
+```{r}
+#b2
+#percentWithInter and Democracy Score Scatterplot
+#Building the raw graph
+demo_int_corr_S.plot <- ggplot(demo_int_corr) + geom_point(mapping = aes(x=Score,y=percentWithInter,color = Category)) 
+
+#Fixing the axices
+demo_int_corr_S.plot <- demo_int_corr_S.plot + scale_x_continuous(name = "Democracy Score",breaks=1:10) + scale_y_continuous(name = "Percents of population with internet",breaks=c(seq(0,1,by = 0.25)), labels = c("0%","25%","50%","75%","100%")) + geom_smooth(aes(x=Score,y=percentWithInter), color = "black")
+
+#The graph
+demo_int_corr_S.plot
+
+#Correlation Coefficient
+cor(demo_int_corr$Score, demo_int_corr$percentWithInter)
+```
+Observation: At first glance, for democracy scores from 0 to 3.5, the percentage of the population with internet access is moderately, positively correlated. However, from 3.5 to about 4.8, it is moderately, negatively correlated. From 4.8 onward, this percentage increases rapidly as the democracy score increases. Also, we can clearly see that the higher the democracy score, the lower is the range percentage and vice versa.
+Correlation coefficient = 0.59: globally, these 2 variables are moderately, positively correlated.
+
+```{r}
+#NOTE: THIS GRAPH IS TO BE ANALYZED ALONGSIDE b4
+#Map 1
+#GDP world map
+#Buidling the World's Data Set
+world <- map_data("world") 
+iu <- world_gdp %>% rename(region = Country) 
+iu$region[36] <- "UK" #In iu USA is "United Kingdom"
+iu$region[16] <- "USA" #In iu USA is "United States"
+iu <- semi_join(iu, world, by = "region") 
+#building the bare map (no borders, no fills)
+gg <- ggplot()
+gg <- gg + geom_map(
+  data = world,
+  map = world,
+  aes(x = long, y = lat, map_id = region),
+  fill = "#ffffff",
+  color = "#ffffff",
+  size = 0.20
+)
+#fill in the map with infos
+gg <- gg + geom_map(
+data = iu,
+map = world,
+aes(fill = `GDP - PER CAPITA (PPP)`, map_id = region),
+color = "#ffffff",
+size = 0.15
+)
+gg <- gg + scale_fill_continuous(low = 'thistle2', high = 'darkblue',
+guide = 'colorbar')
+
+
+
+#Map 2
+#percentWithInter world map
+#Buidling the World's Data Set
+world <- map_data("world") 
+iu <- popAndInter %>% rename(region = Country) 
+iu$region[59] <- "USA" #In iu USA is "United States"
+iu$region[14] <- "UK"
+iu <- semi_join(iu, world, by = "region") 
+#building the bare map (no borders, no fills)
+b4 <- ggplot()
+b4 <- b4 + geom_map(
+  data = world,
+  map = world,
+  aes(x = long, y = lat, map_id = region),
+  fill = "#ffffff",
+  color = "#ffffff",
+  size = 0.20
+)
+#fill in the map with infos
+b4 <- b4 + geom_map(
+data = iu,
+map = world,
+aes(fill = percentWithInter, map_id = region),
+color = "#ffffff",
+size = 0.15
+)
+b4 <- b4 + scale_fill_continuous(low = 'thistle2', high = 'darkblue',
+guide = 'colorbar')
+
+
+#drawing the maps
+b4
+gg
+```
+
+Observation: Looking at this map, we can clearly see that both variables are much higher in North America, Europe, and Australia. We can also say that these 2 variables are positively correlated. For example, Saudi Arabia's percentage of the population with the internet is much higher than the rest of the Middle East, while their GDP per capita is also higher than the rest of the region. Secondly, there's clearly a worth-noting difference between the Southern and Northern hemispheres. For example, GDP per capita of the USA and European countries is much higher than in sub-Saharan countries. However, the exception in this observation is Australia, whose both variables are comparable to that of the Northern countries.  
+
+```{r}
+#This function is made for the purpose of making comparing the maps before more conveniently
+map_compare <- function(){
+  manipulate(
+  plot(data),
+  data = picker("GDP per Capita" = gg, "Percent of internet use" = b4)
+)
+}
+
+writeLines("Run map_compare() in console \n Click on the gear on the top left corner to interact \n Please be VERY patient. After you pick a graph, the gear would start spinning, indicating that it's computing. However, even when the gear stops, you would have to wait a while for the map to appear.")
+
+```
+
+
+
+
+```{r}
+#percent of gdp put into education
+ggplot(data=edu_popAndInter)+geom_point(mapping=aes(x=percentWithInter,y=percentofgdp),position="jitter") +geom_smooth(mapping=aes(x=percentWithInter,y=percentofgdp),method = lm)
+edu_popAndInter
+cor(edu_popAndInter$percentWithInter,edu_popAndInter$percentofgdp)
+```
+2. There is close to no relationship between the percentage of the internet users and gdp of education, as the percent increases the variance between the percent of gdp is similar.
+
+
+
+
+```{r}
+
+
+#modify the data to add `Global South`
+lifeandint <- inner_join(lifeandint,world_regions) %>% 
+  select(Country, percentWithInter, AGE, `Global South`)%>%
+  arrange(desc(AGE))
+lifeandint
+#Graphing
+
+ggplot(lifeandint,aes(x=percentWithInter,y=AGE)) + geom_point(aes(color = `Global South`)) + geom_smooth()
+ggplot(lifeandint,aes(x=percentWithInter,y=AGE))+geom_boxplot(aes(fill=`Global South`)) 
+
+mean(lifeandint$AGE,na.rm=TRUE) #just finding the mean and median of the countries average life expectency
+median(lifeandint$AGE,na.rm=TRUE)
+print("variance:")
+var(lifeandint$percentWithInter)*(length(lifeandint$percentWithInter)-1)/length(lifeandint$percentWithInter)
+var(lifeandint$AGE)*(length(lifeandint$AGE)-1)/length(lifeandint$AGE)
+#finding the variance
+
+print("correlation between x and y is")
+cor(lifeandint$percentWithInter,lifeandint$AGE)
+#finding the correlation between the x and y
+
+
+```
+Observations:
+a. The scatter plot
+At first glance, countries with a higher percentage of the population with internet access have a higher age expectancy. Not only that, similar to the previous graph, as the percentage of the population who has internet access increases, the range of the age expectancy gets drastically more narrow. For example, at close to 1.00, most countries' age expectancy lies between 75 and 85, while at 0.25, it varies from above 50 to close to 80. Upon another look, we can see that the upper echelon of both variables is mostly occupied by Northern Hemisphere countries.
+	
+
+b. The boxplot:
+The drastic difference in sizes of these 2 boxes is due to the fact that there are many more countries in the Southern hemisphere than in the Northern one. Just as stated in the scatterplot, the age expectancy of the Global South is much higher than the Global North. The age expectancy of the majority of countries in the South lies between about 64 and 77, while that of the North lies between 78 and 82.  
+
+```{r}
+econ_int<-inner_join(gdpppp_cia2017,internetusers_cia2017,"Country")
+
+#converting the type of data from string to numerical value
+econ_int$`GDP - PER CAPITA (PPP)` <- as.numeric(gsub('[$,]', '', econ_int$`GDP - PER CAPITA (PPP)`))
+
+econ_int<-econ_int%>%
+  select(Country,`GDP - PER CAPITA (PPP)`, `INTERNET USERS`)%>%
+  mutate(GDP_PERCENT=(econ_int$`INTERNET USERS`)/(econ_int$`GDP - PER CAPITA (PPP)`))%>%
+  #getting rid of the outliers in each variable
+  arrange(desc(`INTERNET USERS`))%>%
+  filter(`INTERNET USERS` < 100000000)%>%
+  filter(`GDP - PER CAPITA (PPP)`<100000)
+  
+  
+econ_int
+```
+
+```{r}
+ggplot(econ_int)+geom_point(mapping=aes(x=`GDP - PER CAPITA (PPP)`,y=`INTERNET USERS`, color=GDP_PERCENT))
+ggplot(econ_int)+geom_smooth(mapping=aes(x=`GDP - PER CAPITA (PPP)`,y=`INTERNET USERS`, color=GDP_PERCENT))
+
+```
+Observations:
+	As you can see from the graph above, as the GDP per capita increases, the number of internet users increases exponentially, but when the GDP per capita surpasses 50000, the number of internet users starts to decrease. When we observe the smooth graph, we can see that this decrease is due to a large variance in data caused by outliers. Thus, as the GDP per capita increases, we observed generally small internet usage because these outliers are small countries that produced more capital than required for the country.
+  
+```{r}
+health_int<-inner_join(healthexpend_cia2017,internetusers_cia2017,"Country")
+
+health_int<-health_int%>%
+  select(Country,`(% OF GDP)`, `INTERNET USERS`)%>%
+  mutate(PERCENT=(health_int$`(% OF GDP)`)/(health_int$`INTERNET USERS`))%>%
+  #removed the China and India outliers
+  
+  arrange(desc(`INTERNET USERS`))%>%
+  filter(`INTERNET USERS`<100000000)%>%
+  filter(`(% OF GDP)`<13)
+  
+health_int
+```
+
+```{r}
+ggplot(health_int)+geom_point(mapping=aes(x=`(% OF GDP)`,y=`INTERNET USERS`, color=PERCENT))
+ggplot(health_int)+geom_smooth(mapping=aes(x=`(% OF GDP)`,y=`INTERNET USERS`, color=PERCENT))
+```
+Observation:
+According to the graph above, the data is scattered everywhere showing that there is no correlation between the total expenditure on health as a percentage of GDP and the internet users. In the scatterplot, between 2.5 and 5.0 percentage of GDP, there is more variance observed in the data, this is also similar if you look at 7.5 and 10.0 percentage of GDP. However, between 5.0 and 7.5, there is more consistent data. The smooth graph further supports this observation by showing that there is more variance in the higher and lower percentage of GDP. Considering all of the observations, we can conclude that percentage of GDP doesn't have an impact on the internet users in each country.
+```{r}
+summary(regionandintuse)
+regionandintuse
+ggplot(data=regionandintuse,aes(x=reorder(Country, percentWithInter),y=percentWithInter))+geom_bar(aes(colour=Direction),stat='identity', position='dodge') + scale_x_discrete(name = "Countries") + scale_y_continuous("Percent of Population with internet") + theme(axis.text.x = element_text(face = "bold", color="#993333",size=0, angle=90)) #Countries name are removed because makes x-axis cluttered and we don't take notice into any particular country
+
+
+
+```
+Observation: It is very clear that the percentage of the population with internet in Northern countries tend to be much higher than the Southern ones. Also, this percentage varies greatly across the globe. There are countries whose this value is close to 0 while many others are close to 1.
+
+```{r}
+regionsummary<-regionandintuse %>% 
+  group_by(Region) %>% 
+  summarise(AverageIntUse = mean(percentWithInter))%>% #finding the average mean of internet users by region
+  arrange(desc(AverageIntUse))
+regionsummary#display data set
+ggplot(regionsummary,aes(x=reorder(Region, AverageIntUse),y=AverageIntUse))+geom_bar(stat="identity",position="dodge")
+```
+
+
+
+
